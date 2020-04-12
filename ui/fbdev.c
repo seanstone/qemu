@@ -33,6 +33,7 @@
 #include "sysemu/sysemu.h"
 #include "ui/input.h"
 #include "qapi/error.h"
+#include "qemu/main-loop.h"
 
 /*
  * must be last so we get the linux input layer
