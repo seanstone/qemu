@@ -359,6 +359,7 @@ fdt=""
 netmap="no"
 sdl=""
 sdl_image=""
+fbdev="no"
 virtfs=""
 mpath=""
 vnc="yes"
@@ -901,6 +902,7 @@ Linux)
   linux="yes"
   linux_user="yes"
   kvm="yes"
+  fbdev="yes"
   QEMU_INCLUDES="-isystem \$(SRC_PATH)/linux-headers -isystem $PWD/linux-headers $QEMU_INCLUDES"
   supported_os="yes"
   libudev="yes"
@@ -1112,6 +1114,10 @@ for opt do
   --disable-qom-cast-debug) qom_cast_debug="no"
   ;;
   --enable-qom-cast-debug) qom_cast_debug="yes"
+  ;;
+  --disable-fbdev) fbdev="no"
+  ;;
+  --enable-fbdev) fbdev="yes"
   ;;
   --disable-virtfs) virtfs="no"
   ;;
@@ -6593,6 +6599,7 @@ echo "SDL support       $sdl $(echo_version $sdl $sdlversion)"
 echo "SDL image support $sdl_image"
 echo "GTK support       $gtk $(echo_version $gtk $gtk_version)"
 echo "GTK GL support    $gtk_gl"
+echo "fbdev support     $fbdev"
 echo "VTE support       $vte $(echo_version $vte $vteversion)"
 echo "TLS priority      $tls_priority"
 echo "GNUTLS support    $gnutls"
@@ -6948,6 +6955,9 @@ if test "$sdl" = "yes" ; then
   if test "$sdl_image" = "yes" ; then
       echo "CONFIG_SDL_IMAGE=y" >> $config_host_mak
   fi
+fi
+if test "$fbdev" = "yes" ; then
+  echo "CONFIG_FBDEV=y" >> $config_host_mak
 fi
 if test "$cocoa" = "yes" ; then
   echo "CONFIG_COCOA=y" >> $config_host_mak

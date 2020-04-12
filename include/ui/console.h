@@ -456,4 +456,8 @@ int vnc_init_func(void *opaque, QemuOpts *opts, Error **errp);
 /* input.c */
 int index_from_key(const char *key, size_t key_length);
 
+/* fbdev.c */
+void fbdev_display_init(DisplayState *ds, DisplayOptions *o);
+void fbdev_display_uninit(void);
+
 #endif

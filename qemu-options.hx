@@ -1728,6 +1728,8 @@ DEF("display", HAS_ARG, QEMU_OPTION_display,
             "\"-display cocoa\"\n"
 #elif defined(CONFIG_VNC)
             "\"-vnc localhost:0,to=99,id=default\"\n"
+#elif defined(CONFIG_FBDEV)
+            "\t\"-display fbdev\"\n"
 #else
             "\"-display none\"\n"
 #endif
@@ -1752,6 +1754,9 @@ SRST
         specified with the ``charset`` option, for example
         ``charset=CP850`` for IBM CP850 encoding. The default is
         ``CP437``.
+
+    ``fbdev``
+        Display video output on a linux framebuffer console.
 
     ``none``
         Do not display video output. The guest will still see an
