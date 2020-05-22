@@ -17,6 +17,7 @@ Contents:
    loads-stores
    memory
    migration
+   atomics
    stable-process
    testing
    decodetree
@@ -26,3 +27,4 @@ Contents:
    bitops
    reset
    s390-dasd-ipl
+   clocks

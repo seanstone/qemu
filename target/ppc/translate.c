@@ -1882,6 +1882,7 @@ static void gen_rlwimi(DisasContext *ctx)
         tcg_gen_deposit_tl(t_ra, t_ra, t_rs, sh, me - mb + 1);
     } else {
         target_ulong mask;
+        bool mask_in_32b = true;
         TCGv t1;
 
 #if defined(TARGET_PPC64)
@@ -1890,8 +1891,13 @@ static void gen_rlwimi(DisasContext *ctx)
 #endif
         mask = MASK(mb, me);
 
+#if defined(TARGET_PPC64)
+        if (mask > 0xffffffffu) {
+            mask_in_32b = false;
+        }
+#endif
         t1 = tcg_temp_new();
-        if (mask <= 0xffffffffu) {
+        if (mask_in_32b) {
             TCGv_i32 t0 = tcg_temp_new_i32();
             tcg_gen_trunc_tl_i32(t0, t_rs);
             tcg_gen_rotli_i32(t0, t0, sh);
@@ -1933,12 +1939,18 @@ static void gen_rlwinm(DisasContext *ctx)
         tcg_gen_extract_tl(t_ra, t_rs, rsh, len);
     } else {
         target_ulong mask;
+        bool mask_in_32b = true;
 #if defined(TARGET_PPC64)
         mb += 32;
         me += 32;
 #endif
         mask = MASK(mb, me);
-        if (mask <= 0xffffffffu) {
+#if defined(TARGET_PPC64)
+        if (mask > 0xffffffffu) {
+            mask_in_32b = false;
+        }
+#endif
+        if (mask_in_32b) {
             if (sh == 0) {
                 tcg_gen_andi_tl(t_ra, t_rs, mask);
             } else {
@@ -1973,6 +1985,7 @@ static void gen_rlwnm(DisasContext *ctx)
     uint32_t mb = MB(ctx->opcode);
     uint32_t me = ME(ctx->opcode);
     target_ulong mask;
+    bool mask_in_32b = true;
 
 #if defined(TARGET_PPC64)
     mb += 32;
@@ -1980,7 +1993,12 @@ static void gen_rlwnm(DisasContext *ctx)
 #endif
     mask = MASK(mb, me);
 
-    if (mask <= 0xffffffffu) {
+#if defined(TARGET_PPC64)
+    if (mask > 0xffffffffu) {
+        mask_in_32b = false;
+    }
+#endif
+    if (mask_in_32b) {
         TCGv_i32 t0 = tcg_temp_new_i32();
         TCGv_i32 t1 = tcg_temp_new_i32();
         tcg_gen_trunc_tl_i32(t0, t_rb);
@@ -4361,30 +4379,34 @@ static void gen_mtmsrd(DisasContext *ctx)
     CHK_SV;
 
 #if !defined(CONFIG_USER_ONLY)
+    if (tb_cflags(ctx->base.tb) & CF_USE_ICOUNT) {
+        gen_io_start();
+    }
     if (ctx->opcode & 0x00010000) {
-        /* Special form that does not need any synchronisation */
+        /* L=1 form only updates EE and RI */
         TCGv t0 = tcg_temp_new();
+        TCGv t1 = tcg_temp_new();
         tcg_gen_andi_tl(t0, cpu_gpr[rS(ctx->opcode)],
                         (1 << MSR_RI) | (1 << MSR_EE));
-        tcg_gen_andi_tl(cpu_msr, cpu_msr,
+        tcg_gen_andi_tl(t1, cpu_msr,
                         ~(target_ulong)((1 << MSR_RI) | (1 << MSR_EE)));
-        tcg_gen_or_tl(cpu_msr, cpu_msr, t0);
+        tcg_gen_or_tl(t1, t1, t0);
+
+        gen_helper_store_msr(cpu_env, t1);
         tcg_temp_free(t0);
+        tcg_temp_free(t1);
+
     } else {
         /*
          * XXX: we need to update nip before the store if we enter
          *      power saving mode, we will exit the loop directly from
          *      ppc_store_msr
          */
-        if (tb_cflags(ctx->base.tb) & CF_USE_ICOUNT) {
-            gen_io_start();
-        }
         gen_update_nip(ctx, ctx->base.pc_next);
         gen_helper_store_msr(cpu_env, cpu_gpr[rS(ctx->opcode)]);
-        /* Must stop the translation as machine state (may have) changed */
-        /* Note that mtmsr is not always defined as context-synchronizing */
-        gen_stop_exception(ctx);
     }
+    /* Must stop the translation as machine state (may have) changed */
+    gen_stop_exception(ctx);
 #endif /* !defined(CONFIG_USER_ONLY) */
 }
 #endif /* defined(TARGET_PPC64) */
@@ -4394,15 +4416,23 @@ static void gen_mtmsr(DisasContext *ctx)
     CHK_SV;
 
 #if !defined(CONFIG_USER_ONLY)
-   if (ctx->opcode & 0x00010000) {
-        /* Special form that does not need any synchronisation */
+    if (tb_cflags(ctx->base.tb) & CF_USE_ICOUNT) {
+        gen_io_start();
+    }
+    if (ctx->opcode & 0x00010000) {
+        /* L=1 form only updates EE and RI */
         TCGv t0 = tcg_temp_new();
+        TCGv t1 = tcg_temp_new();
         tcg_gen_andi_tl(t0, cpu_gpr[rS(ctx->opcode)],
                         (1 << MSR_RI) | (1 << MSR_EE));
-        tcg_gen_andi_tl(cpu_msr, cpu_msr,
+        tcg_gen_andi_tl(t1, cpu_msr,
                         ~(target_ulong)((1 << MSR_RI) | (1 << MSR_EE)));
-        tcg_gen_or_tl(cpu_msr, cpu_msr, t0);
+        tcg_gen_or_tl(t1, t1, t0);
+
+        gen_helper_store_msr(cpu_env, t1);
         tcg_temp_free(t0);
+        tcg_temp_free(t1);
+
     } else {
         TCGv msr = tcg_temp_new();
 
@@ -4411,9 +4441,6 @@ static void gen_mtmsr(DisasContext *ctx)
          *      power saving mode, we will exit the loop directly from
          *      ppc_store_msr
          */
-        if (tb_cflags(ctx->base.tb) & CF_USE_ICOUNT) {
-            gen_io_start();
-        }
         gen_update_nip(ctx, ctx->base.pc_next);
 #if defined(TARGET_PPC64)
         tcg_gen_deposit_tl(msr, cpu_msr, cpu_gpr[rS(ctx->opcode)], 0, 32);
@@ -4422,10 +4449,9 @@ static void gen_mtmsr(DisasContext *ctx)
 #endif
         gen_helper_store_msr(cpu_env, msr);
         tcg_temp_free(msr);
-        /* Must stop the translation as machine state (may have) changed */
-        /* Note that mtmsr is not always defined as context-synchronizing */
-        gen_stop_exception(ctx);
     }
+    /* Must stop the translation as machine state (may have) changed */
+    gen_stop_exception(ctx);
 #endif
 }
 
@@ -5003,6 +5029,7 @@ static void gen_slbia(DisasContext *ctx)
     CHK_SV;
 
     gen_helper_slbia(cpu_env, t0);
+    tcg_temp_free_i32(t0);
 #endif /* defined(CONFIG_USER_ONLY) */
 }
 
